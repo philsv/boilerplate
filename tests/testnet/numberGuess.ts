@@ -35,7 +35,7 @@ async function main() {
     console.log('guess method call successfully: ', guessTx.id)
 }
 
-describe('Test SmartContract `Numbergs` on testnet', () => {
+describe('Test SmartContract `NumberGuess` on testnet', () => {
     it('should succeed', async () => {
         await main()
     })

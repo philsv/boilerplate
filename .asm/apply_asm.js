@@ -74,16 +74,6 @@ function replaceFuncBodyAsm(scryptFile, funcName, asm) {
 function getOutDir() {
   let outDir = "./artifacts";
 
-  const jsonString = fs.readFileSync("./tsconfig.json", "utf8");
-  const jsonWithoutComments = jsonString.replace(/\/\/.*|\/\*[^]*?\*\//g, "");
-  const tsConfig = JSON.parse(jsonWithoutComments);
-  const plugins = tsConfig.compilerOptions.plugins;
-  for (const plugin of plugins) {
-    if (plugin.transform.startsWith("scrypt-ts")) {
-      outDir = plugin.outDir;
-    }
-  }
-
   return outDir;
 }
 
@@ -118,10 +108,7 @@ async function main() {
   const asmFile = JSON.parse(fs.readFileSync(".asm/asm.json", "utf-8"));
 
   const outDir = getOutDir();
-  const scryptFiles = findFilesWithExtension(
-    path.join(outDir, "src"),
-    ".scrypt"
-  );
+  const scryptFiles = findFilesWithExtension(outDir, ".scrypt");
 
   for (const contractName of Object.keys(asmFile)) {
     let found = false;
