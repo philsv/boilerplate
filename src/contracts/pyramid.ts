@@ -52,14 +52,14 @@ export class Pyramid extends SmartContract {
         )
     }
 
-    static recruitTxBuilder(
+    static buildTxForRecruit(
         current: Pyramid,
         options: MethodCallOptions<Pyramid>,
         recruit0PubKey: PubKey,
         recruit1PubKey: PubKey
     ): Promise<ContractTransaction> {
         const unsignedTx: bsv.Transaction = new bsv.Transaction()
-            .addInput(current.buildContractInput(options.fromUTXO))
+            .addInput(current.buildContractInput())
             .addOutput(
                 new bsv.Transaction.Output({
                     script: bsv.Script.fromHex(

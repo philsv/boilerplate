@@ -105,20 +105,20 @@ export class StatefulMultiSig extends SmartContract {
 
     // Custom tx builder for calling function `pay`.
     // Includes P2PKH output that pays set destination address.
-    static payTxBuilder(
+    static buildTxForPay(
         current: StatefulMultiSig,
         options: MethodCallOptions<StatefulMultiSig>
     ): Promise<ContractTransaction> {
         const tx: bsv.Transaction = new bsv.Transaction()
             // add contract input
-            .addInput(current.buildContractInput(options.fromUTXO))
+            .addInput(current.buildContractInput())
             // add a p2pkh output
             .addOutput(
                 new bsv.Transaction.Output({
                     script: bsv.Script.fromHex(
                         Utils.buildPublicKeyHashScript(current.dest)
                     ),
-                    satoshis: options.fromUTXO.satoshis,
+                    satoshis: current.balance,
                 })
             )
             // add change output

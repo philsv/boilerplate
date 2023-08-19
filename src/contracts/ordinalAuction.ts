@@ -10,22 +10,22 @@ import {
     Sig,
     SmartContract,
     Utils,
-    UTXO,
     bsv,
     hash160,
+    slice,
+    StatefulNext,
 } from 'scrypt-ts'
 
 import Transaction = bsv.Transaction
 import Address = bsv.Address
 import Script = bsv.Script
 
-/*
- * Read Medium article about this contract:
- * https://medium.com/@xiaohuiliu/auction-on-bitcoin-4ba2b6c18ba7
- */
-export class Auction extends SmartContract {
+export class OrdinalAuction extends SmartContract {
     static readonly LOCKTIME_BLOCK_HEIGHT_MARKER = 500000000
     static readonly UINT_MAX = 0xffffffffn
+
+    @prop()
+    ordnialPrevout: ByteString
 
     // The bidder's public key.
     @prop(true)
@@ -39,8 +39,13 @@ export class Auction extends SmartContract {
     @prop()
     readonly auctionDeadline: bigint
 
-    constructor(auctioneer: PubKey, auctionDeadline: bigint) {
+    constructor(
+        ordinalPrevout: ByteString,
+        auctioneer: PubKey,
+        auctionDeadline: bigint
+    ) {
         super(...arguments)
+        this.ordnialPrevout = ordinalPrevout
         this.bidder = auctioneer
         this.auctioneer = auctioneer
         this.auctionDeadline = auctionDeadline
@@ -80,14 +85,18 @@ export class Auction extends SmartContract {
 
     // Close the auction if deadline is reached.
     @method()
-    public close(sig: Sig) {
+    public close(sigAuctioneer: Sig) {
         // Check if using block height.
-        if (this.auctionDeadline < Auction.LOCKTIME_BLOCK_HEIGHT_MARKER) {
+        if (
+            this.auctionDeadline < OrdinalAuction.LOCKTIME_BLOCK_HEIGHT_MARKER
+        ) {
             // Enforce nLocktime field to also use block height.
-            assert(this.ctx.locktime < Auction.LOCKTIME_BLOCK_HEIGHT_MARKER)
+            assert(
+                this.ctx.locktime < OrdinalAuction.LOCKTIME_BLOCK_HEIGHT_MARKER
+            )
         }
         assert(
-            this.ctx.sequence < Auction.UINT_MAX,
+            this.ctx.sequence < OrdinalAuction.UINT_MAX,
             'input sequence should less than UINT_MAX'
         )
         assert(
@@ -96,47 +105,47 @@ export class Auction extends SmartContract {
         )
 
         // Check signature of the auctioneer.
-        assert(this.checkSig(sig, this.auctioneer), 'signature check failed')
-    }
+        assert(
+            this.checkSig(sigAuctioneer, this.auctioneer),
+            'signature check failed'
+        )
 
-    // Customize the deployment tx by overriding `SmartContract.buildDeployTransaction` method
-    override async buildDeployTransaction(
-        utxos: UTXO[],
-        amount: number,
-        changeAddress?: Address | string
-    ): Promise<Transaction> {
-        const deployTx = new Transaction()
-            // add p2pkh inputs
-            .from(utxos)
-            // add contract output
-            .addOutput(
-                new Transaction.Output({
-                    script: this.lockingScript,
-                    satoshis: amount,
-                })
-            )
-            // add OP_RETURN output
-            .addData('Hello World')
+        // Check the passed prevouts byte string is correct.
+        assert(
+            hash256(this.prevouts) == this.ctx.hashPrevouts,
+            'hashPrevouts mismatch'
+        )
 
-        if (changeAddress) {
-            deployTx.change(changeAddress)
-            if (this._provider) {
-                deployTx.feePerKb(await this.provider.getFeePerKb())
-            }
-        }
+        // Ensure the first input in spending the auctioned ordinal UTXO.
+        assert(
+            slice(this.prevouts, 0n, 36n) == this.ordnialPrevout,
+            'first input is not spending specified ordinal UTXO'
+        )
 
-        return deployTx
+        // Ensure the ordinal is being payed out to the winning bidder.
+        let outputs = Utils.buildPublicKeyHashOutput(hash160(this.bidder), 1n)
+
+        // Ensure the second output is paying the bid to the auctioneer.
+        outputs += Utils.buildPublicKeyHashOutput(
+            hash160(this.auctioneer),
+            this.ctx.utxo.value
+        )
+
+        // Add change output.
+        outputs += this.buildChangeOutput()
+
+        // Check outputs.
+        assert(hash256(outputs) == this.ctx.hashOutputs, 'hashOutputs mismatch')
     }
 
     // User defined transaction builder for calling function `bid`
     static buildTxForBid(
-        current: Auction,
-        options: MethodCallOptions<Auction>,
+        current: OrdinalAuction,
+        options: MethodCallOptions<OrdinalAuction>,
         bidder: PubKey,
         bid: bigint
     ): Promise<ContractTransaction> {
-        const nextInstance = current.next()
-        nextInstance.bidder = bidder
+        const next = options.next as StatefulNext<OrdinalAuction>
 
         const unsignedTx: Transaction = new Transaction()
             // add contract input
@@ -144,7 +153,7 @@ export class Auction extends SmartContract {
             // build next instance output
             .addOutput(
                 new Transaction.Output({
-                    script: nextInstance.lockingScript,
+                    script: next.instance.lockingScript,
                     satoshis: Number(bid),
                 })
             )
@@ -165,9 +174,9 @@ export class Auction extends SmartContract {
             atInputIndex: 0,
             nexts: [
                 {
-                    instance: nextInstance,
+                    instance: next.instance,
                     atOutputIndex: 0,
-                    balance: Number(bid),
+                    balance: next.balance,
                 },
             ],
         })
