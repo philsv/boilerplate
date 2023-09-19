@@ -3,8 +3,8 @@ import { Mimc7Test } from '../src/contracts/mimc7'
 import { getDefaultSigner } from './utils/helper'
 
 describe('Test SmartContract `Mimc7Test`', () => {
-    before(async () => {
-        await Mimc7Test.compile()
+    before(() => {
+        Mimc7Test.loadArtifact()
     })
 
     it('should pass the public method unit test successfully.', async () => {
@@ -13,11 +13,11 @@ describe('Test SmartContract `Mimc7Test`', () => {
 
         await mimc7.deploy(1)
         const callContract = async () =>
-            await mimc7.methods.unlock(
+            mimc7.methods.unlock(
                 1n,
                 2n,
                 10594780656576967754230020536574539122676596303354946869887184401991294982664n
             )
-        expect(callContract()).not.throw
+        return expect(callContract()).not.rejected
     })
 })

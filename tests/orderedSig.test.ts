@@ -1,9 +1,9 @@
 import { expect, use } from 'chai'
 import chaiAsPromised from 'chai-as-promised'
 import {
+    Addr,
     bsv,
     ContractTransaction,
-    hash160,
     hash256,
     MethodCallOptions,
     PubKey,
@@ -21,14 +21,14 @@ use(chaiAsPromised)
 const N_SIGNERS = 3
 
 describe('Heavy: Test SmartContract `OrderedSig`', () => {
-    const destAddr = hash160(myPublicKey.toHex())
+    const destAddr = Addr(myPublicKey.toAddress().toByteString())
 
     const privKeys: bsv.PrivateKey[] = []
     const pubKeys: bsv.PublicKey[] = []
 
     const msg = toByteString('Hello, sCrypt!', true)
 
-    before(async () => {
+    before(() => {
         for (let i = 0; i < N_SIGNERS; i++) {
             const privKey = bsv.PrivateKey.fromRandom(bsv.Networks.testnet)
             const pubKey = new bsv.PublicKey(privKey.publicKey.point, {
@@ -38,15 +38,15 @@ describe('Heavy: Test SmartContract `OrderedSig`', () => {
             pubKeys.push(pubKey)
         }
 
-        await OrderedSig.compile()
+        OrderedSig.loadArtifact()
     })
 
     it('should pass w correct sigs', async () => {
         const orderedSig = new OrderedSig(
             msg,
-            PubKey(pubKeys[0].toHex()),
-            PubKey(pubKeys[1].toHex()),
-            PubKey(pubKeys[2].toHex()),
+            PubKey(pubKeys[0].toByteString()),
+            PubKey(pubKeys[1].toByteString()),
+            PubKey(pubKeys[2].toByteString()),
             destAddr
         )
         await orderedSig.connect(getDefaultSigner(privKeys[0]))
@@ -131,7 +131,7 @@ describe('Heavy: Test SmartContract `OrderedSig`', () => {
             }
         )
         const callContract = async () =>
-            await orderedSig.methods.unlock(
+            orderedSig.methods.unlock(
                 (_) => sig0,
                 sig1,
                 sig2,
@@ -140,6 +140,6 @@ describe('Heavy: Test SmartContract `OrderedSig`', () => {
                     changeAddress: await orderedSig.signer.getDefaultAddress(),
                 } as MethodCallOptions<OrderedSig>
             )
-        expect(callContract()).not.throw
+        return expect(callContract()).not.rejected
     })
 })

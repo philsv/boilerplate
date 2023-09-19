@@ -2,19 +2,18 @@ import {
     assert,
     ByteString,
     FixedArray,
-    hash160,
     hash256,
     len,
     method,
     prop,
     PubKey,
-    PubKeyHash,
-    Sha256,
+    Addr,
     Sig,
     slice,
     SmartContract,
     toByteString,
     Utils,
+    pubKey2Addr,
 } from 'scrypt-ts'
 import { Blockchain, MerklePath, MerkleProof, BlockHeader } from 'scrypt-ts-lib'
 
@@ -23,7 +22,7 @@ export type VarIntRes = {
     newIdx: bigint
 }
 
-export class CrossChainSwap2 extends SmartContract {
+export class BTCSwap extends SmartContract {
     static readonly LOCKTIME_BLOCK_HEIGHT_MARKER = 500000000
     static readonly UINT_MAX = 0xffffffffn
     static readonly MIN_CONF = 3
@@ -31,13 +30,13 @@ export class CrossChainSwap2 extends SmartContract {
     static readonly BTC_MAX_INPUTS = 3
 
     @prop()
-    readonly aliceAddr: PubKeyHash
+    readonly aliceAddr: Addr
 
     @prop()
-    readonly bobAddr: PubKeyHash
+    readonly bobAddr: Addr
 
     @prop()
-    readonly bobP2WPKHAddr: PubKeyHash
+    readonly bobP2WPKHAddr: Addr
 
     @prop()
     readonly timeout: bigint // Can be a timestamp or block height.
@@ -52,9 +51,9 @@ export class CrossChainSwap2 extends SmartContract {
     readonly amountBSV: bigint
 
     constructor(
-        aliceAddr: PubKeyHash,
-        bobAddr: PubKeyHash,
-        bobP2WPKHAddr: PubKeyHash,
+        aliceAddr: Addr,
+        bobAddr: Addr,
+        bobP2WPKHAddr: Addr,
         timeout: bigint,
         targetDifficulty: bigint,
         amountBTC: bigint,
@@ -117,19 +116,19 @@ export class CrossChainSwap2 extends SmartContract {
         )
 
         //// INPUTS:
-        const inLen = CrossChainSwap2.parseVarInt(btcTx, idx)
+        const inLen = BTCSwap.parseVarInt(btcTx, idx)
         assert(
-            inLen.val <= BigInt(CrossChainSwap2.BTC_MAX_INPUTS),
+            inLen.val <= BigInt(BTCSwap.BTC_MAX_INPUTS),
             'Number of inputs too large.'
         )
         idx = inLen.newIdx
-        for (let i = 0n; i < CrossChainSwap2.BTC_MAX_INPUTS; i++) {
+        for (let i = 0n; i < BTCSwap.BTC_MAX_INPUTS; i++) {
             if (i < inLen.val) {
                 //const prevTxID = slice(btcTx, idx, idx + 32n)
                 idx += 32n
                 //const outIdx = slice(btcTx, idx, idx + 4n)
                 idx += 4n
-                const scriptLen = CrossChainSwap2.parseVarInt(btcTx, idx)
+                const scriptLen = BTCSwap.parseVarInt(btcTx, idx)
                 idx = scriptLen.newIdx
                 idx += scriptLen.val
                 //const nSequence = slice(btcTx, idx, idx + 4n)
@@ -139,12 +138,12 @@ export class CrossChainSwap2 extends SmartContract {
 
         //// FIRST OUTPUT:
         // Check if (first) output pays Bob the right amount and terminate and set res to true.
-        const outLen = CrossChainSwap2.parseVarInt(btcTx, idx)
+        const outLen = BTCSwap.parseVarInt(btcTx, idx)
         idx = outLen.newIdx
         const amount = Utils.fromLEUnsigned(slice(btcTx, idx, idx + 8n))
         assert(amount == this.amountBTC, 'Invalid BTC output amount.')
         idx += 8n
-        const scriptLen = CrossChainSwap2.parseVarInt(btcTx, idx)
+        const scriptLen = BTCSwap.parseVarInt(btcTx, idx)
         idx = scriptLen.newIdx
         const script = slice(btcTx, idx, idx + scriptLen.val)
         assert(len(script) == 22n, 'Invalid locking script length.')
@@ -160,7 +159,7 @@ export class CrossChainSwap2 extends SmartContract {
     public swap(
         btcTx: ByteString,
         merkleProof: MerkleProof,
-        headers: FixedArray<BlockHeader, typeof CrossChainSwap2.MIN_CONF>,
+        headers: FixedArray<BlockHeader, typeof BTCSwap.MIN_CONF>,
         alicePubKey: PubKey,
         aliceSig: Sig
     ) {
@@ -178,7 +177,7 @@ export class CrossChainSwap2 extends SmartContract {
         )
 
         // Check target diff for headers.
-        for (let i = 0; i < CrossChainSwap2.MIN_CONF; i++) {
+        for (let i = 0; i < BTCSwap.MIN_CONF; i++) {
             assert(
                 Blockchain.isValidBlockHeader(
                     headers[i],
@@ -190,7 +189,7 @@ export class CrossChainSwap2 extends SmartContract {
 
         // Check header chain.
         let h = Blockchain.blockHeaderHash(headers[0])
-        for (let i = 0; i < CrossChainSwap2.MIN_CONF; i++) {
+        for (let i = 0; i < BTCSwap.MIN_CONF; i++) {
             if (i >= 1n) {
                 const header = headers[i]
                 // Check if prev block hash matches.
@@ -204,7 +203,10 @@ export class CrossChainSwap2 extends SmartContract {
         }
 
         // Verify Alices signature.
-        assert(hash160(alicePubKey) == this.aliceAddr, 'Alice wrong pub key.')
+        assert(
+            pubKey2Addr(alicePubKey) == this.aliceAddr,
+            'Alice wrong pub key.'
+        )
         assert(this.checkSig(aliceSig, alicePubKey))
     }
 
@@ -212,16 +214,15 @@ export class CrossChainSwap2 extends SmartContract {
     public cancel(bobPubKey: PubKey, bobSig: Sig) {
         // Ensure nSequence is less than UINT_MAX.
         assert(
-            this.ctx.sequence < CrossChainSwap2.UINT_MAX,
+            this.ctx.sequence < BTCSwap.UINT_MAX,
             'input sequence should less than UINT_MAX'
         )
 
         // Check if using block height.
-        if (this.timeout < CrossChainSwap2.LOCKTIME_BLOCK_HEIGHT_MARKER) {
+        if (this.timeout < BTCSwap.LOCKTIME_BLOCK_HEIGHT_MARKER) {
             // Enforce nLocktime field to also use block height.
             assert(
-                this.ctx.locktime <
-                    CrossChainSwap2.LOCKTIME_BLOCK_HEIGHT_MARKER,
+                this.ctx.locktime < BTCSwap.LOCKTIME_BLOCK_HEIGHT_MARKER,
                 'locktime should be less than 500000000'
             )
         }
@@ -231,7 +232,7 @@ export class CrossChainSwap2 extends SmartContract {
         )
 
         // Verify Bobs signature.
-        assert(hash160(bobPubKey) == this.bobAddr, 'Bob wrong pub key.')
+        assert(pubKey2Addr(bobPubKey) == this.bobAddr, 'Bob wrong pub key.')
         assert(this.checkSig(bobSig, bobPubKey))
     }
 }

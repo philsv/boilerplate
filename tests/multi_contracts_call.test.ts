@@ -12,9 +12,9 @@ import { expect } from 'chai'
 import { HashPuzzle } from '../src/contracts/hashPuzzle'
 
 describe('Test SmartContract `AdvancedCounter, HashPuzzle` multi call on local', () => {
-    before(async () => {
-        await AdvancedCounter.compile()
-        await HashPuzzle.compile()
+    before(() => {
+        AdvancedCounter.loadArtifact()
+        HashPuzzle.loadArtifact()
     })
 
     it('should succeed', async () => {
@@ -102,8 +102,8 @@ describe('Test SmartContract `AdvancedCounter, HashPuzzle` multi call on local',
         } as MethodCallOptions<HashPuzzle>)
 
         const callContract = async () =>
-            await SmartContract.multiContractCall(finalTx, signer)
+            SmartContract.multiContractCall(finalTx, signer)
 
-        expect(callContract()).not.throw
+        return expect(callContract()).not.rejected
     })
 })

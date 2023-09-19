@@ -4,13 +4,13 @@ import {
     bsv,
     ByteString,
     findSig,
-    hash160,
     hash256,
     int2ByteString,
     MethodCallOptions,
     PubKey,
-    PubKeyHash,
+    Addr,
     toByteString,
+    pubKey2Addr,
 } from 'scrypt-ts'
 import { Signature } from 'scrypt-ts-lib'
 import { BlindEscrow } from '../src/contracts/blindEscrow'
@@ -28,15 +28,15 @@ describe('Heavy: Test SmartContract `BlindEscrow`', () => {
     let buyerPubKey: bsv.PublicKey
     let arbiterPubKey: bsv.PublicKey
 
-    let sellerPKH: PubKeyHash
-    let buyerPKH: PubKeyHash
-    let arbiterPKH: PubKeyHash
+    let sellerPKH: Addr
+    let buyerPKH: Addr
+    let arbiterPKH: Addr
 
     let escrowNonce: ByteString
 
     let blindEscrow: BlindEscrow
 
-    before(async () => {
+    before(() => {
         seller = bsv.PrivateKey.fromRandom(bsv.Networks.testnet)
         buyer = bsv.PrivateKey.fromRandom(bsv.Networks.testnet)
         arbiter = bsv.PrivateKey.fromRandom(bsv.Networks.testnet)
@@ -51,13 +51,13 @@ describe('Heavy: Test SmartContract `BlindEscrow`', () => {
             compressed: false,
         })
 
-        sellerPKH = hash160(sellerPubKey.toHex())
-        buyerPKH = hash160(buyerPubKey.toHex())
-        arbiterPKH = hash160(arbiterPubKey.toHex())
+        sellerPKH = pubKey2Addr(PubKey(sellerPubKey.toByteString()))
+        buyerPKH = pubKey2Addr(PubKey(buyerPubKey.toByteString()))
+        arbiterPKH = pubKey2Addr(PubKey(arbiterPubKey.toByteString()))
 
         escrowNonce = toByteString('001122334455aabbcc') // TODO
 
-        await BlindEscrow.compile()
+        BlindEscrow.loadArtifact()
 
         blindEscrow = new BlindEscrow(
             sellerPKH,
@@ -84,11 +84,11 @@ describe('Heavy: Test SmartContract `BlindEscrow`', () => {
 
         await blindEscrow.deploy(1)
         const callContract = async () =>
-            await blindEscrow.methods.spend(
+            blindEscrow.methods.spend(
                 (sigResps) => findSig(sigResps, buyer.publicKey),
-                PubKey(buyerPubKey.toHex()),
+                PubKey(buyerPubKey.toByteString()),
                 oracleSig,
-                PubKey(sellerPubKey.toHex()),
+                PubKey(sellerPubKey.toByteString()),
                 BlindEscrow.RELEASE_BY_SELLER,
                 {
                     pubKeyOrAddrToSign: buyer.publicKey,
@@ -114,11 +114,11 @@ describe('Heavy: Test SmartContract `BlindEscrow`', () => {
         await blindEscrow.deploy(1)
 
         const callContract = async () =>
-            await blindEscrow.methods.spend(
+            blindEscrow.methods.spend(
                 (sigResps) => findSig(sigResps, buyer.publicKey),
-                PubKey(buyerPubKey.toHex()),
+                PubKey(buyerPubKey.toByteString()),
                 oracleSig,
-                PubKey(arbiterPubKey.toHex()),
+                PubKey(arbiterPubKey.toByteString()),
                 BlindEscrow.RELEASE_BY_ARBITER,
                 {
                     pubKeyOrAddrToSign: buyer.publicKey,
@@ -143,11 +143,11 @@ describe('Heavy: Test SmartContract `BlindEscrow`', () => {
         await blindEscrow.connect(getDefaultSigner(seller))
         await blindEscrow.deploy(1)
         const callContract = async () =>
-            await blindEscrow.methods.spend(
+            blindEscrow.methods.spend(
                 (sigResps) => findSig(sigResps, seller.publicKey),
-                PubKey(sellerPubKey.toHex()),
+                PubKey(sellerPubKey.toByteString()),
                 oracleSig,
-                PubKey(buyerPubKey.toHex()),
+                PubKey(buyerPubKey.toByteString()),
                 BlindEscrow.RETURN_BY_BUYER,
                 {
                     pubKeyOrAddrToSign: seller.publicKey,
@@ -172,17 +172,17 @@ describe('Heavy: Test SmartContract `BlindEscrow`', () => {
         await blindEscrow.deploy(1)
 
         const callContract = async () =>
-            await blindEscrow.methods.spend(
+            blindEscrow.methods.spend(
                 (sigResps) => findSig(sigResps, seller.publicKey),
-                PubKey(sellerPubKey.toHex()),
+                PubKey(sellerPubKey.toByteString()),
                 oracleSig,
-                PubKey(arbiterPubKey.toHex()),
+                PubKey(arbiterPubKey.toByteString()),
                 BlindEscrow.RETURN_BY_ARBITER,
                 {
                     pubKeyOrAddrToSign: seller.publicKey,
                 } as MethodCallOptions<BlindEscrow>
             )
 
-        expect(callContract()).not.throw
+        return expect(callContract()).not.rejected
     })
 })

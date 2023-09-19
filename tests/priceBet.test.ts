@@ -43,7 +43,7 @@ describe('Test SmartContract `PriceBet`', () => {
 
     let priceBet: PriceBet
 
-    before(async () => {
+    before(() => {
         // Prepare inital data.
         alicePrivKey = bsv.PrivateKey.fromRandom(bsv.Networks.testnet)
         bobPrivKey = bsv.PrivateKey.fromRandom(bsv.Networks.testnet)
@@ -55,16 +55,15 @@ describe('Test SmartContract `PriceBet`', () => {
         const timestampTo = 1680998400n // Thu, 09 Apr 2023 00:00:00 GMT 🥚
         const symbol = toByteString(RESP_0.symbol, true) + '0000000000000000'
 
-        // Compile and instantiate contract.
-        await PriceBet.compile()
+        PriceBet.loadArtifact()
         priceBet = new PriceBet(
             BigInt(targetPrice),
             symbol,
             timestampFrom,
             timestampTo,
             rabinPubKey as RabinPubKey,
-            PubKey(alicePrivKey.publicKey.toHex()),
-            PubKey(bobPrivKey.publicKey.toHex())
+            PubKey(alicePrivKey.publicKey.toByteString()),
+            PubKey(bobPrivKey.publicKey.toByteString())
         )
     })
 
@@ -92,7 +91,7 @@ describe('Test SmartContract `PriceBet`', () => {
         }
 
         const callContract = async () =>
-            await priceBet.methods.unlock(
+            priceBet.methods.unlock(
                 RESP_0.digest as ByteString,
                 oracleSig,
                 (sigResps) => findSig(sigResps, winnerPubKey),
@@ -101,7 +100,7 @@ describe('Test SmartContract `PriceBet`', () => {
                     pubKeyOrAddrToSign: winnerPubKey,
                 } as MethodCallOptions<PriceBet>
             )
-        expect(callContract()).not.throw
+        return expect(callContract()).not.rejected
     })
 
     it('should fail paying wrong player.', async () => {
@@ -128,7 +127,7 @@ describe('Test SmartContract `PriceBet`', () => {
         }
 
         const callContract = async () =>
-            await priceBet.methods.unlock(
+            priceBet.methods.unlock(
                 RESP_0.digest as ByteString,
                 oracleSig,
                 (sigResps) => findSig(sigResps, looserPubKey),

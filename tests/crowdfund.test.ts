@@ -5,8 +5,8 @@ import { getDefaultSigner, randomPrivateKey } from './utils/helper'
 import chaiAsPromised from 'chai-as-promised'
 use(chaiAsPromised)
 
-const [privateKeyRecipient, publicKeyRecipient, ,] = randomPrivateKey()
-const [privateKeyContributor, publicKeyContributor, ,] = randomPrivateKey()
+const [privateKeyRecipient, publicKeyRecipient] = randomPrivateKey()
+const [privateKeyContributor, publicKeyContributor] = randomPrivateKey()
 
 describe('Test SmartContract `Crowdfund`', () => {
     // JS timestamps are in milliseconds, so we divide by 1000 to get a UNIX timestamp
@@ -16,10 +16,10 @@ describe('Test SmartContract `Crowdfund`', () => {
     let crowdfund: Crowdfund
 
     before(async () => {
-        await Crowdfund.compile()
+        Crowdfund.loadArtifact()
         crowdfund = new Crowdfund(
-            PubKey(toHex(publicKeyRecipient)),
-            PubKey(toHex(publicKeyContributor)),
+            PubKey(publicKeyRecipient.toByteString()),
+            PubKey(publicKeyContributor.toByteString()),
             BigInt(deadline),
             target
         )
@@ -31,7 +31,7 @@ describe('Test SmartContract `Crowdfund`', () => {
     it('should collect fund success', async () => {
         await crowdfund.deploy(2)
         const callContract = async () =>
-            await crowdfund.methods.collect(
+            crowdfund.methods.collect(
                 (sigResps) => findSig(sigResps, publicKeyRecipient),
                 {
                     pubKeyOrAddrToSign: publicKeyRecipient,
@@ -40,27 +40,27 @@ describe('Test SmartContract `Crowdfund`', () => {
                     ),
                 } as MethodCallOptions<Crowdfund>
             )
-        expect(callContract()).not.throw
+        return expect(callContract()).not.rejected
     })
 
     it('should success when refund', async () => {
         await crowdfund.deploy(1)
         const today = Math.round(new Date().valueOf() / 1000)
         const callContract = async () =>
-            await crowdfund.methods.refund(
+            crowdfund.methods.refund(
                 (sigResps) => findSig(sigResps, publicKeyContributor),
                 {
                     pubKeyOrAddrToSign: publicKeyContributor,
                     lockTime: today,
                 } as MethodCallOptions<Crowdfund>
             )
-        expect(callContract()).not.throw
+        return expect(callContract()).not.rejected
     })
 
     it('should fail when refund before deadline', async () => {
         await crowdfund.deploy(1)
         const callContract = async () =>
-            await crowdfund.methods.refund(
+            crowdfund.methods.refund(
                 (sigResps) => findSig(sigResps, publicKeyContributor),
                 {
                     pubKeyOrAddrToSign: publicKeyContributor,

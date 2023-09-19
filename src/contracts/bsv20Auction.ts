@@ -11,10 +11,9 @@ import {
     SmartContract,
     Utils,
     bsv,
-    hash160,
     slice,
     StatefulNext,
-    toByteString,
+    pubKey2Addr,
 } from 'scrypt-ts'
 
 import Transaction = bsv.Transaction
@@ -27,7 +26,7 @@ export class BSV20Auction extends SmartContract {
 
     // Output of auctioned ordinal (txid + vout).
     @prop()
-    ordnialPrevout: ByteString
+    readonly ordnialPrevout: ByteString
 
     // Inscription for the BSV-20 transfer.
     // Example:
@@ -40,7 +39,7 @@ export class BSV20Auction extends SmartContract {
     // }
     // OP_ENDIF
     @prop()
-    transferInscription: ByteString
+    readonly transferInscription: ByteString
 
     // The bidder's public key.
     @prop(true)
@@ -86,7 +85,7 @@ export class BSV20Auction extends SmartContract {
 
         // Refund previous highest bidder.
         const refundOutput: ByteString = Utils.buildPublicKeyHashOutput(
-            hash160(highestBidder),
+            pubKey2Addr(highestBidder),
             highestBid
         )
         let outputs: ByteString = auctionOutput + refundOutput
@@ -125,12 +124,6 @@ export class BSV20Auction extends SmartContract {
             'signature check failed'
         )
 
-        // Check the passed prevouts byte string is correct.
-        assert(
-            hash256(this.prevouts) == this.ctx.hashPrevouts,
-            'hashPrevouts mismatch'
-        )
-
         // Ensure the first input is spending the auctioned ordinal UTXO.
         assert(
             slice(this.prevouts, 0n, 36n) == this.ordnialPrevout,
@@ -138,13 +131,14 @@ export class BSV20Auction extends SmartContract {
         )
 
         // Ensure the ordinal is being payed out to the winning bidder.
-        let outScript = Utils.buildPublicKeyHashScript(hash160(this.bidder))
-        outScript += this.transferInscription
+        const outScript =
+            this.transferInscription +
+            Utils.buildPublicKeyHashScript(pubKey2Addr(this.bidder))
         let outputs = Utils.buildOutput(outScript, 1n)
 
         // Ensure the second output is paying the bid to the auctioneer.
         outputs += Utils.buildPublicKeyHashOutput(
-            hash160(this.auctioneer),
+            pubKey2Addr(this.auctioneer),
             this.ctx.utxo.value
         )
 
@@ -178,7 +172,9 @@ export class BSV20Auction extends SmartContract {
             .addOutput(
                 new Transaction.Output({
                     script: Script.fromHex(
-                        Utils.buildPublicKeyHashScript(hash160(current.bidder))
+                        Utils.buildPublicKeyHashScript(
+                            pubKey2Addr(current.bidder)
+                        )
                     ),
                     satoshis: current.balance,
                 })

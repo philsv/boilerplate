@@ -3,40 +3,29 @@ import { Demo } from '../src/contracts/demo'
 import { getDefaultSigner } from './utils/helper'
 import chaiAsPromised from 'chai-as-promised'
 
+// https://www.chaijs.com/plugins/chai-as-promised/
+// https://stackoverflow.com/a/40842060
 use(chaiAsPromised)
 
 describe('Test SmartContract `Demo`', () => {
     let demo: Demo
 
     before(async () => {
-        await Demo.compile()
+        Demo.loadArtifact()
 
-        demo = new Demo(-2n, 7n)
+        demo = new Demo(10n, -4n)
         await demo.connect(getDefaultSigner())
     })
 
-    it('should pass `add`', async () => {
+    it('should pass `unlock` with correct solution', async () => {
         await demo.deploy(1)
-        const callContract = async () => await demo.methods.add(5n)
-        expect(callContract()).not.throw
+        const callContract = async () => demo.methods.unlock(3n, 7n)
+        return expect(callContract()).not.rejected
     })
 
-    it('should pass `sub`', async () => {
+    it('should throw when calling `unlock` with wrong solution', async () => {
         await demo.deploy(1)
-
-        const callContract = async () => await demo.methods.sub(-9n)
-        expect(callContract()).not.throw
-    })
-
-    it('should throw when calling `add`', async () => {
-        await demo.deploy(1)
-        const callContract = async () => await demo.methods.add(-5n)
-        return expect(callContract()).to.be.rejectedWith(/add check failed/)
-    })
-
-    it('should throw when calling `sub`', async () => {
-        await demo.deploy(1)
-        const callContract = async () => await demo.methods.sub(9n)
-        return expect(callContract()).to.be.rejectedWith(/sub check failed/)
+        const callContract = async () => demo.methods.unlock(4n, 6n)
+        return expect(callContract()).to.be.rejectedWith(/incorrect diff/)
     })
 })

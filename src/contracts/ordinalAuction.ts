@@ -11,10 +11,12 @@ import {
     SmartContract,
     Utils,
     bsv,
-    hash160,
     slice,
     StatefulNext,
+    pubKey2Addr,
 } from 'scrypt-ts'
+
+// https://xiaohuiliu.medium.com/integrate-ordinals-with-smart-contracts-on-bitcoin-part-2-d638b7ca3742
 
 import Transaction = bsv.Transaction
 import Address = bsv.Address
@@ -26,7 +28,7 @@ export class OrdinalAuction extends SmartContract {
 
     // Output of auctioned ordinal (txid + vout).
     @prop()
-    ordnialPrevout: ByteString
+    readonly ordnialPrevout: ByteString
 
     // The bidder's public key.
     @prop(true)
@@ -70,7 +72,7 @@ export class OrdinalAuction extends SmartContract {
 
         // Refund previous highest bidder.
         const refundOutput: ByteString = Utils.buildPublicKeyHashOutput(
-            hash160(highestBidder),
+            pubKey2Addr(highestBidder),
             highestBid
         )
         let outputs: ByteString = auctionOutput + refundOutput
@@ -111,12 +113,6 @@ export class OrdinalAuction extends SmartContract {
             'signature check failed'
         )
 
-        // Check the passed prevouts byte string is correct.
-        assert(
-            hash256(this.prevouts) == this.ctx.hashPrevouts,
-            'hashPrevouts mismatch'
-        )
-
         // Ensure the first input in spending the auctioned ordinal UTXO.
         assert(
             slice(this.prevouts, 0n, 36n) == this.ordnialPrevout,
@@ -124,11 +120,14 @@ export class OrdinalAuction extends SmartContract {
         )
 
         // Ensure the ordinal is being payed out to the winning bidder.
-        let outputs = Utils.buildPublicKeyHashOutput(hash160(this.bidder), 1n)
+        let outputs = Utils.buildPublicKeyHashOutput(
+            pubKey2Addr(this.bidder),
+            1n
+        )
 
         // Ensure the second output is paying the bid to the auctioneer.
         outputs += Utils.buildPublicKeyHashOutput(
-            hash160(this.auctioneer),
+            pubKey2Addr(this.auctioneer),
             this.ctx.utxo.value
         )
 
@@ -162,7 +161,9 @@ export class OrdinalAuction extends SmartContract {
             .addOutput(
                 new Transaction.Output({
                     script: Script.fromHex(
-                        Utils.buildPublicKeyHashScript(hash160(current.bidder))
+                        Utils.buildPublicKeyHashScript(
+                            pubKey2Addr(current.bidder)
+                        )
                     ),
                     satoshis: current.balance,
                 })

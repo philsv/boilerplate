@@ -10,18 +10,18 @@ import {
     MethodCallOptions,
     PubKey,
     findSig,
-    hash160,
+    Addr,
 } from 'scrypt-ts'
-import { myPublicKey } from './utils/privateKey'
+import { myAddress } from './utils/privateKey'
 
 describe('Test SmartContract `StatefulMultiSig`', () => {
-    const destAddr = hash160(myPublicKey.toHex())
+    const destAddr = Addr(myAddress.toByteString())
 
     const privKeys: bsv.PrivateKey[] = []
     const pubKeys: bsv.PublicKey[] = []
     let owners: FixedArray<Owner, typeof StatefulMultiSig.M>
 
-    before(async () => {
+    before(() => {
         const _owners: Array<Owner> = []
         for (let i = 0; i < StatefulMultiSig.M; i++) {
             const privKey = bsv.PrivateKey.fromRandom(bsv.Networks.testnet)
@@ -29,13 +29,13 @@ describe('Test SmartContract `StatefulMultiSig`', () => {
             privKeys.push(privKey)
             pubKeys.push(pubKey)
             _owners.push({
-                pubKey: PubKey(pubKey.toHex()),
+                pubKey: PubKey(pubKey.toByteString()),
                 validated: false,
             })
         }
 
         owners = _owners as FixedArray<Owner, typeof StatefulMultiSig.M>
-        await StatefulMultiSig.compile()
+        StatefulMultiSig.loadArtifact()
     })
 
     it('should pass adding valid sig.', async () => {
@@ -53,7 +53,7 @@ describe('Test SmartContract `StatefulMultiSig`', () => {
         next.owners[pubKeyIdx].validated = true
 
         const callContract = async () =>
-            await statefulMultiSig.methods.add(
+            statefulMultiSig.methods.add(
                 (sigResps) => findSig(sigResps, pubKeys[pubKeyIdx]),
                 BigInt(pubKeyIdx),
                 // Method call options:
@@ -65,7 +65,7 @@ describe('Test SmartContract `StatefulMultiSig`', () => {
                     },
                 } as MethodCallOptions<StatefulMultiSig>
             )
-        expect(callContract()).not.throw
+        return expect(callContract()).not.rejected
     })
 
     it('should pass paying out if threshold reached.', async () => {
@@ -84,7 +84,7 @@ describe('Test SmartContract `StatefulMultiSig`', () => {
             next.owners[pubKeyIdx].validated = true
 
             const callContract = async () =>
-                await statefulMultiSig.methods.add(
+                statefulMultiSig.methods.add(
                     (sigResps) => findSig(sigResps, pubKeys[pubKeyIdx]),
                     BigInt(pubKeyIdx),
                     // Method call options:
@@ -96,20 +96,20 @@ describe('Test SmartContract `StatefulMultiSig`', () => {
                         },
                     } as MethodCallOptions<StatefulMultiSig>
                 )
-            expect(callContract()).not.throw
+            await expect(callContract()).not.rejected
 
             statefulMultiSig = next
         }
 
         const callContract = async () =>
-            await statefulMultiSig.methods.pay(
+            statefulMultiSig.methods.pay(
                 // Method call options:
                 {
                     changeAddress:
                         await statefulMultiSig.signer.getDefaultAddress(),
                 } as MethodCallOptions<StatefulMultiSig>
             )
-        expect(callContract()).not.throw
+        return expect(callContract()).not.rejected
     })
 
     it('should fail adding invalid sig.', async () => {
@@ -127,7 +127,7 @@ describe('Test SmartContract `StatefulMultiSig`', () => {
         next.owners[pubKeyIdx].validated = true
 
         const callContract = async () =>
-            await statefulMultiSig.methods.add(
+            statefulMultiSig.methods.add(
                 (sigResps) => findSig(sigResps, randKey.publicKey),
                 BigInt(pubKeyIdx),
                 // Method call options:
@@ -152,7 +152,7 @@ describe('Test SmartContract `StatefulMultiSig`', () => {
         await statefulMultiSig.deploy(1)
 
         const callContract = async () =>
-            await statefulMultiSig.methods.pay(
+            statefulMultiSig.methods.pay(
                 // Method call options:
                 {
                     changeAddress:

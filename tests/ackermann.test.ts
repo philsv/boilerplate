@@ -9,7 +9,7 @@ describe('Test SmartContract `Ackermann`', () => {
     let ackermann: Ackermann
 
     before(async () => {
-        await Ackermann.compile()
+        Ackermann.loadArtifact()
         ackermann = new Ackermann(2n, 1n)
 
         await ackermann.connect(getDefaultSigner())
@@ -17,13 +17,13 @@ describe('Test SmartContract `Ackermann`', () => {
 
     it('should transpile contract `Ackermann` successfully.', async () => {
         await ackermann.deploy(1)
-        const callContract = async () => await ackermann.methods.unlock(5n)
-        expect(callContract()).not.throw
+        const callContract = async () => ackermann.methods.unlock(5n)
+        return expect(callContract()).not.rejected
     })
 
     it('should throw', async () => {
         await ackermann.deploy(1)
-        const callContract = async () => await ackermann.methods.unlock(4n)
+        const callContract = async () => ackermann.methods.unlock(4n)
         return expect(callContract()).to.be.rejectedWith(/Wrong solution/)
     })
 })

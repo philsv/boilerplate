@@ -5,26 +5,22 @@ import {
     findSig,
     MethodCallOptions,
     PubKey,
-    PubKeyHash,
-    toHex,
     bsv,
     ContractTransaction,
+    Addr,
 } from 'scrypt-ts'
 
 import { expect } from 'chai'
 
 describe('Test SmartContract `P2PKH` with ANYONECANPAY_SINGLE', () => {
     const ownerPrivkey = bsv.PrivateKey.fromRandom(bsv.Networks.testnet)
-    const ownerPublicKeyHash = bsv.crypto.Hash.sha256ripemd160(
-        ownerPrivkey.publicKey.toBuffer()
-    )
-
-    before(async () => {
-        await P2PKH.compile()
+    const ownerAddress = ownerPrivkey.toAddress()
+    before(() => {
+        P2PKH.loadArtifact()
     })
 
     it('should succeed at first Input', async () => {
-        const p2pkh = new P2PKH(PubKeyHash(toHex(ownerPublicKeyHash)))
+        const p2pkh = new P2PKH(Addr(ownerAddress.toByteString()))
 
         // Signer who unlocks / signs P2PKH UTXO.
         const ownerSigner = getNewSigner(ownerPrivkey)
@@ -80,41 +76,43 @@ describe('Test SmartContract `P2PKH` with ANYONECANPAY_SINGLE', () => {
 
         // switch to owner signer
         await p2pkh.connect(ownerSigner)
-        const { tx: callTx } = await p2pkh.methods.unlock(
-            // pass signature, the first parameter, to `unlock`
-            // after the signer signs the transaction, the signatures are returned in `SignatureResponse[]`
-            // you need to find the signature or signatures you want in the return through the public key or address
-            // here we use `myPublicKey` to find the signature because we signed the transaction with `myPrivateKey` before
-            (sigResps) =>
-                findSig(sigResps, ownerPrivkey.publicKey, sigHashType),
-            // pass public key, the second parameter, to `unlock`
-            PubKey(toHex(ownerPrivkey.publicKey)),
-            // method call options
-            {
-                // tell the signer to use the private key corresponding to `myPublicKey` to sign this transaction
-                // that is using `myPrivateKey` to sign the transaction
-                pubKeyOrAddrToSign: {
-                    pubKeyOrAddr: ownerPrivkey.publicKey,
-                    sigHashType: sigHashType,
-                },
-                // this flag will make the call tx not broadcast, but only be created locally
-                partiallySigned: true,
-                // don't auto-add any fee inputs
-                autoPayFee: false,
-            } as MethodCallOptions<P2PKH>
-        )
 
-        // Finally, sign the newly added inputs and broadcast the modified transaction.
-        // Notice, that if the main singer wouldn't use the ANYONECANPAY_SINGLE sighash flag,
-        // Then the call to the "unlock" method (first input) wouldn't successfully evaluate anymore.
-        await feeSigner.signAndsendTransaction(callTx, { address })
+        const call = async () => {
+            const { tx: callTx } = await p2pkh.methods.unlock(
+                // pass signature, the first parameter, to `unlock`
+                // after the signer signs the transaction, the signatures are returned in `SignatureResponse[]`
+                // you need to find the signature or signatures you want in the return through the public key or address
+                // here we use `myPublicKey` to find the signature because we signed the transaction with `myPrivateKey` before
+                (sigResps) =>
+                    findSig(sigResps, ownerPrivkey.publicKey, sigHashType),
+                // pass public key, the second parameter, to `unlock`
+                PubKey(ownerPrivkey.publicKey.toByteString()),
+                // method call options
+                {
+                    // tell the signer to use the private key corresponding to `myPublicKey` to sign this transaction
+                    // that is using `myPrivateKey` to sign the transaction
+                    pubKeyOrAddrToSign: {
+                        pubKeyOrAddr: ownerPrivkey.publicKey,
+                        sigHashType: sigHashType,
+                    },
+                    // this flag will make the call tx not broadcast, but only be created locally
+                    partiallySigned: true,
+                    // don't auto-add any fee inputs
+                    autoPayFee: false,
+                } as MethodCallOptions<P2PKH>
+            )
 
-        const result = callTx.verify()
-        expect(result).to.be.true
+            // Finally, sign the newly added inputs and broadcast the modified transaction.
+            // Notice, that if the main singer wouldn't use the ANYONECANPAY_SINGLE sighash flag,
+            // Then the call to the "unlock" method (first input) wouldn't successfully evaluate anymore.
+            await feeSigner.signAndsendTransaction(callTx, { address })
+        }
+
+        await expect(call()).to.be.not.rejected
     })
 
     it('should succeed at second Input', async () => {
-        const p2pkh = new P2PKH(PubKeyHash(toHex(ownerPublicKeyHash)))
+        const p2pkh = new P2PKH(Addr(ownerAddress.toByteString()))
 
         // Signer who unlocks / signs P2PKH UTXO.
         const ownerSigner = getNewSigner(ownerPrivkey)
@@ -172,36 +170,36 @@ describe('Test SmartContract `P2PKH` with ANYONECANPAY_SINGLE', () => {
         const sigHashType = bsv.crypto.Signature.ANYONECANPAY_SINGLE
 
         await p2pkh.connect(ownerSigner)
-        const { tx: callTx } = await p2pkh.methods.unlock(
-            // pass signature, the first parameter, to `unlock`
-            // after the signer signs the transaction, the signatures are returned in `SignatureResponse[]`
-            // you need to find the signature or signatures you want in the return through the public key or address
-            // here we use `myPublicKey` to find the signature because we signed the transaction with `myPrivateKey` before
-            (sigResps) =>
-                findSig(sigResps, ownerPrivkey.publicKey, sigHashType),
-            // pass public key, the second parameter, to `unlock`
-            PubKey(toHex(ownerPrivkey.publicKey)),
-            // method call options
-            {
-                // tell the signer to use the private key corresponding to `myPublicKey` to sign this transaction
-                // that is using `myPrivateKey` to sign the transaction
-                pubKeyOrAddrToSign: {
-                    pubKeyOrAddr: ownerPrivkey.publicKey,
-                    sigHashType: sigHashType,
-                },
-                partiallySigned: true,
-                autoPayFee: false,
-            } as MethodCallOptions<P2PKH>
-        )
 
-        // Finally, sign the newly added inputs and broadcast the modified transaction.
-        // Notice, that if the main singer wouldn't use the ANYONECANPAY_SINGLE sighash flag,
-        // Then the call to the "unlock" method (first input) wouldn't successfully evaluate anymore.
+        const call = async () => {
+            const { tx: callTx } = await p2pkh.methods.unlock(
+                // pass signature, the first parameter, to `unlock`
+                // after the signer signs the transaction, the signatures are returned in `SignatureResponse[]`
+                // you need to find the signature or signatures you want in the return through the public key or address
+                // here we use `myPublicKey` to find the signature because we signed the transaction with `myPrivateKey` before
+                (sigResps) =>
+                    findSig(sigResps, ownerPrivkey.publicKey, sigHashType),
+                // pass public key, the second parameter, to `unlock`
+                PubKey(ownerPrivkey.publicKey.toByteString()),
+                // method call options
+                {
+                    // tell the signer to use the private key corresponding to `myPublicKey` to sign this transaction
+                    // that is using `myPrivateKey` to sign the transaction
+                    pubKeyOrAddrToSign: {
+                        pubKeyOrAddr: ownerPrivkey.publicKey,
+                        sigHashType: sigHashType,
+                    },
+                    partiallySigned: true,
+                    autoPayFee: false,
+                } as MethodCallOptions<P2PKH>
+            )
 
-        await feeSigner.signAndsendTransaction(callTx, { address })
+            // Finally, sign the newly added inputs and broadcast the modified transaction.
+            // Notice, that if the main singer wouldn't use the ANYONECANPAY_SINGLE sighash flag,
+            // Then the call to the "unlock" method (first input) wouldn't successfully evaluate anymore.
+            await feeSigner.signAndsendTransaction(callTx, { address })
+        }
 
-        const result = callTx.verify()
-
-        expect(result).to.be.true
+        await expect(call()).to.be.not.rejected
     })
 })

@@ -1,34 +1,32 @@
 import { expect } from 'chai'
-import { CrossChainSwap2 } from '../src/contracts/crossChainSwap2'
+import { BTCSwap } from '../src/contracts/btcSwap'
 import {
     FixedArray,
     MethodCallOptions,
     PubKey,
-    Ripemd160,
+    Addr,
     Sha256,
     bsv,
     findSig,
-    hash160,
     reverseByteString,
     toByteString,
-    toHex,
 } from 'scrypt-ts'
 import { getDefaultSigner } from './utils/helper'
 import { BlockHeader, MerklePath, MerkleProof, Node } from 'scrypt-ts-lib'
 
-describe('Test SmartContract `CrossChainSwap2`', () => {
-    let crossChainSwap: CrossChainSwap2
+describe('Test SmartContract `BTCSwap`', () => {
+    let btcSwap: BTCSwap
 
     // TODO: Make this actual btc testnet key and adjust values
     const alicePrivKey = bsv.PrivateKey.fromRandom(bsv.Networks.testnet)
     const alicePubKey = alicePrivKey.publicKey
-    const aliceAddr = hash160(alicePubKey.toHex())
+    const aliceAddr = alicePubKey.toAddress().toByteString()
 
     const bobPrivKey = bsv.PrivateKey.fromWIF(
         'cNgrjdLrsKLpArLadM1gzg4kzFdejma3riLcpeDgTEPaJbPcWip3'
     )
     const bobPubKey = bobPrivKey.publicKey
-    const bobAddr = hash160(bobPubKey.toHex())
+    const bobAddr = bobPubKey.toAddress().toByteString()
     const bobP2WPKHAddr = toByteString(
         'dfa6b3ba7c262e3c68cfe9ee5dd47dbf25aac528'
     ) // TODO: Derive P2WPKH addr dynamically
@@ -125,13 +123,13 @@ describe('Test SmartContract `CrossChainSwap2`', () => {
         },
     ]
 
-    before(async () => {
-        await CrossChainSwap2.compile()
+    before(() => {
+        BTCSwap.loadArtifact()
 
-        crossChainSwap = new CrossChainSwap2(
-            Ripemd160(aliceAddr),
-            Ripemd160(bobAddr),
-            Ripemd160(bobP2WPKHAddr),
+        btcSwap = new BTCSwap(
+            Addr(aliceAddr),
+            Addr(bobAddr),
+            Addr(bobP2WPKHAddr),
             timeout,
             pdiff2Target(targetDifficulty),
             amountBTC,
@@ -140,37 +138,37 @@ describe('Test SmartContract `CrossChainSwap2`', () => {
     })
 
     it('should pass swap', async () => {
-        await crossChainSwap.connect(getDefaultSigner(alicePrivKey))
+        await btcSwap.connect(getDefaultSigner(alicePrivKey))
 
-        await crossChainSwap.deploy(1)
+        await btcSwap.deploy(1)
         const callContract = async () =>
-            await crossChainSwap.methods.swap(
+            btcSwap.methods.swap(
                 btcTx,
                 merkleProof,
                 headers,
-                PubKey(toHex(alicePubKey)),
+                PubKey(alicePubKey.toByteString()),
                 (sigResps) => findSig(sigResps, alicePubKey),
                 {
                     pubKeyOrAddrToSign: alicePubKey,
-                } as MethodCallOptions<CrossChainSwap2>
+                } as MethodCallOptions<BTCSwap>
             )
-        expect(callContract()).not.throw
+        return expect(callContract()).not.rejected
     })
 
     it('should pass cancel', async () => {
-        await crossChainSwap.connect(getDefaultSigner(bobPrivKey))
+        await btcSwap.connect(getDefaultSigner(bobPrivKey))
 
-        await crossChainSwap.deploy(1)
+        await btcSwap.deploy(1)
         const callContract = async () =>
-            await crossChainSwap.methods.cancel(
-                PubKey(toHex(bobPubKey)),
+            btcSwap.methods.cancel(
+                PubKey(bobPubKey.toByteString()),
                 (sigResps) => findSig(sigResps, bobPubKey),
                 {
                     lockTime: Number(timeout) + 1000,
                     pubKeyOrAddrToSign: bobPubKey,
-                } as MethodCallOptions<CrossChainSwap2>
+                } as MethodCallOptions<BTCSwap>
             )
-        expect(callContract()).not.throw
+        return expect(callContract()).not.rejected
     })
 })
 

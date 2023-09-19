@@ -7,8 +7,7 @@ import {
     MethodCallOptions,
     ContractTransaction,
     PubKey,
-    PubKeyHash,
-    toHex,
+    Addr,
 } from 'scrypt-ts'
 import { AccumulatorMultiSig } from '../src/contracts/accumulatorMultiSig'
 import { getDefaultSigner, randomPrivateKey } from './utils/helper'
@@ -16,24 +15,24 @@ import chaiAsPromised from 'chai-as-promised'
 
 use(chaiAsPromised)
 
-const [privateKey1, publicKey1, publicKeyHash1] = randomPrivateKey()
-const [privateKey2, publicKey2, publicKeyHash2] = randomPrivateKey()
-const [privateKey3, publicKey3, publicKeyHash3] = randomPrivateKey()
+const [privateKey1, publicKey1, address1] = randomPrivateKey()
+const [privateKey2, publicKey2, address2] = randomPrivateKey()
+const [privateKey3, publicKey3, address3] = randomPrivateKey()
 
 const pubKeys = [publicKey1, publicKey2, publicKey3].map((pk) => {
-    return PubKey(pk.toString())
+    return PubKey(pk.toByteString())
 }) as FixedArray<PubKey, typeof AccumulatorMultiSig.N>
 
-const pubKeyHashes = [publicKeyHash1, publicKeyHash2, publicKeyHash3].map(
-    (pkh) => PubKeyHash(toHex(pkh))
-) as FixedArray<PubKeyHash, typeof AccumulatorMultiSig.N>
+const addresses = [address1, address2, address3].map((address) =>
+    Addr(address.toByteString())
+) as FixedArray<Addr, typeof AccumulatorMultiSig.N>
 
 let accumulatorMultiSig: AccumulatorMultiSig
 
 describe('Test SmartContract `AccumulatorMultiSig`', () => {
     before(async () => {
-        await AccumulatorMultiSig.compile()
-        accumulatorMultiSig = new AccumulatorMultiSig(2n, pubKeyHashes)
+        AccumulatorMultiSig.loadArtifact()
+        accumulatorMultiSig = new AccumulatorMultiSig(2n, addresses)
 
         const signer = getDefaultSigner([privateKey1, privateKey2, privateKey3])
         await accumulatorMultiSig.connect(signer)
@@ -41,18 +40,18 @@ describe('Test SmartContract `AccumulatorMultiSig`', () => {
 
     it('should successfully with all three right.', async () => {
         await accumulatorMultiSig.deploy(1)
-        const callContract = async () => await call([true, true, true])
-        expect(callContract()).not.throw
+        const callContract = async () => call([true, true, true])
+        return expect(callContract()).not.rejected
     })
 
     it('should successfully with two right.', async () => {
         await accumulatorMultiSig.deploy(1)
-        const callContract = async () => await call([true, true, false])
-        expect(callContract()).not.throw
+        const callContract = async () => call([true, true, false])
+        return expect(callContract()).not.rejected
     })
 
     it('should throw with only one right.', async () => {
-        const callContract = async () => await call([false, true, false])
+        const callContract = async () => call([false, true, false])
         return expect(callContract()).to.be.rejectedWith(
             /the number of signatures does not meet the threshold limit/
         )

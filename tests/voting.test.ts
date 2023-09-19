@@ -4,8 +4,8 @@ import { getDefaultSigner, getRandomInt } from './utils/helper'
 import { FixedArray, MethodCallOptions, toByteString } from 'scrypt-ts'
 
 describe('Test SmartContract `Voting`', () => {
-    before(async () => {
-        await Voting.compile()
+    before(() => {
+        Voting.loadArtifact()
     })
 
     const candidateNames: FixedArray<CandidateName, typeof N> = [
@@ -42,13 +42,13 @@ describe('Test SmartContract `Voting`', () => {
 
             // call the method of current instance to apply the updates on chain
             const callContract = async () =>
-                await currentInstance.methods.vote(candidate, {
+                currentInstance.methods.vote(candidate, {
                     next: {
                         instance: nextInstance,
                         balance,
                     },
                 } as MethodCallOptions<Voting>)
-            expect(callContract()).not.throw
+            await expect(callContract()).not.rejected
 
             // update the current instance reference
             currentInstance = nextInstance

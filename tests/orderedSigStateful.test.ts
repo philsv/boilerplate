@@ -2,6 +2,7 @@ import { expect } from 'chai'
 import { OrderedSigStateful } from '../src/contracts/orderedSigStateful'
 import { getDefaultSigner } from './utils/helper'
 import {
+    Addr,
     ContractTransaction,
     FixedArray,
     MethodCallOptions,
@@ -9,7 +10,6 @@ import {
     Utils,
     bsv,
     findSig,
-    hash160,
     toByteString,
 } from 'scrypt-ts'
 import { myAddress, myPublicKey } from './utils/privateKey'
@@ -17,7 +17,7 @@ import { myAddress, myPublicKey } from './utils/privateKey'
 const N_SIGNERS = OrderedSigStateful.N_SIGNERS
 
 describe('Test SmartContract `OrderedSigStateful`', () => {
-    const destAddr = hash160(myPublicKey.toHex())
+    const destAddr = Addr(myPublicKey.toAddress().toByteString())
 
     const privKeys: bsv.PrivateKey[] = []
     const pubKeys: bsv.PublicKey[] = []
@@ -25,18 +25,18 @@ describe('Test SmartContract `OrderedSigStateful`', () => {
 
     const msg = toByteString('Hello, sCrypt!', true)
 
-    before(async () => {
+    before(() => {
         const _signers: Array<PubKey> = []
         for (let i = 0; i < N_SIGNERS; i++) {
             const privKey = bsv.PrivateKey.fromRandom(bsv.Networks.testnet)
             const pubKey = new bsv.PublicKey(privKey.publicKey.point)
             privKeys.push(privKey)
             pubKeys.push(pubKey)
-            _signers.push(PubKey(pubKey.toHex()))
+            _signers.push(PubKey(pubKey.toByteString()))
         }
         signers = _signers as FixedArray<PubKey, typeof N_SIGNERS>
 
-        await OrderedSigStateful.compile()
+        OrderedSigStateful.loadArtifact()
     })
 
     it('should pass w correct sigs', async () => {
@@ -109,7 +109,7 @@ describe('Test SmartContract `OrderedSigStateful`', () => {
                         changeAddress: myAddress,
                     } as MethodCallOptions<OrderedSigStateful>
                 )
-            expect(callContract()).not.throw
+            await expect(callContract()).not.rejected
 
             // Update the current instance reference.
             currentInstance = nextInstance

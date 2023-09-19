@@ -1,21 +1,21 @@
 import { expect } from 'chai'
-import { PubKeyHash, toHex } from 'scrypt-ts'
+import { Addr } from 'scrypt-ts'
 import { EnforceRecipient } from '../src/contracts/enforceRecipient'
-import { myPublicKeyHash } from './utils/privateKey'
+import { myAddress } from './utils/privateKey'
 import { getDefaultSigner } from './utils/helper'
 
 describe('Test SmartContract `EnforceRecipient`', () => {
-    before(async () => {
-        await EnforceRecipient.compile()
+    before(() => {
+        EnforceRecipient.loadArtifact()
     })
 
     it('should transpile contract `EnforceRecipient` successfully.', async () => {
         const enforceRecipient = new EnforceRecipient(
-            PubKeyHash(toHex(myPublicKeyHash))
+            Addr(myAddress.toByteString())
         )
         await enforceRecipient.connect(getDefaultSigner())
         await enforceRecipient.deploy(1)
-        const callContract = async () => await enforceRecipient.methods.unlock()
-        expect(callContract()).not.throw
+        const callContract = async () => enforceRecipient.methods.unlock()
+        return expect(callContract()).not.rejected
     })
 })

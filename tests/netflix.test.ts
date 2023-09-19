@@ -17,11 +17,11 @@ describe('Test SmartContract `Netflix`', () => {
 
     let netflix: Netflix
     before(async () => {
-        await Netflix.compile()
+        Netflix.loadArtifact()
 
         netflix = new Netflix(
-            PubKey(toHex(publicKeyalice)),
-            PubKey(toHex(publicKeybob)),
+            PubKey(publicKeyalice.toByteString()),
+            PubKey(publicKeybob.toByteString()),
             Sha256(toByteString('hello', true))
         )
 
@@ -31,13 +31,13 @@ describe('Test SmartContract `Netflix`', () => {
     it('should succeed', async () => {
         await netflix.deploy(1)
         const callContract = async () =>
-            await netflix.methods.unlock(
+            netflix.methods.unlock(
                 toByteString('hello', true),
                 (sigResps) => findSig(sigResps, publicKeyalice),
                 {
                     pubKeyOrAddrToSign: publicKeyalice,
                 } as MethodCallOptions<Netflix>
             )
-        expect(callContract()).not.throw
+        return expect(callContract()).not.rejected
     })
 })
