@@ -19,16 +19,12 @@ import {
 // https://xiaohuiliu.medium.com/integrate-ordinals-with-smart-contracts-on-bitcoin-part-2-d638b7ca3742
 
 import Transaction = bsv.Transaction
-import Address = bsv.Address
 import Script = bsv.Script
 
 export class OrdinalAuction extends SmartContract {
-    static readonly LOCKTIME_BLOCK_HEIGHT_MARKER = 500000000
-    static readonly UINT_MAX = 0xffffffffn
-
     // Output of auctioned ordinal (txid + vout).
     @prop()
-    readonly ordnialPrevout: ByteString
+    readonly ordinalPrevout: ByteString
 
     // The bidder's public key.
     @prop(true)
@@ -48,7 +44,7 @@ export class OrdinalAuction extends SmartContract {
         auctionDeadline: bigint
     ) {
         super(...arguments)
-        this.ordnialPrevout = ordinalPrevout
+        this.ordinalPrevout = ordinalPrevout
         this.bidder = auctioneer
         this.auctioneer = auctioneer
         this.auctionDeadline = auctionDeadline
@@ -89,23 +85,8 @@ export class OrdinalAuction extends SmartContract {
     // Close the auction if deadline is reached.
     @method()
     public close(sigAuctioneer: Sig) {
-        // Check if using block height.
-        if (
-            this.auctionDeadline < OrdinalAuction.LOCKTIME_BLOCK_HEIGHT_MARKER
-        ) {
-            // Enforce nLocktime field to also use block height.
-            assert(
-                this.ctx.locktime < OrdinalAuction.LOCKTIME_BLOCK_HEIGHT_MARKER
-            )
-        }
-        assert(
-            this.ctx.sequence < OrdinalAuction.UINT_MAX,
-            'input sequence should less than UINT_MAX'
-        )
-        assert(
-            this.ctx.locktime >= this.auctionDeadline,
-            'auction is not over yet'
-        )
+        // Check deadline.
+        assert(this.timeLock(this.auctionDeadline), 'auction is not yet over')
 
         // Check signature of the auctioneer.
         assert(
@@ -115,7 +96,7 @@ export class OrdinalAuction extends SmartContract {
 
         // Ensure the first input in spending the auctioned ordinal UTXO.
         assert(
-            slice(this.prevouts, 0n, 36n) == this.ordnialPrevout,
+            slice(this.prevouts, 0n, 36n) == this.ordinalPrevout,
             'first input is not spending specified ordinal UTXO'
         )
 
@@ -168,8 +149,11 @@ export class OrdinalAuction extends SmartContract {
                     satoshis: current.balance,
                 })
             )
+
+        if (options.changeAddress) {
             // build change output
-            .change(options.changeAddress)
+            unsignedTx.change(options.changeAddress)
+        }
 
         return Promise.resolve({
             tx: unsignedTx,

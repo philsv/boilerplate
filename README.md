@@ -14,18 +14,21 @@ npm install
 In order to run smart contract tests locally, just simply run:
 
 ```sh
-npm test
+npm t
 ```
 
-This will run every test defined under `tests/local/`.
+This will run every test defined under `tests/`.
 
-To run tests for a specific smart contract, i.e. the `Counter` smart contract, run the following:
+To run tests only for a specific smart contract, i.e. the `Counter` smart contract, you can run the following:
 
 ```sh
-npm run build && npx mocha 'dist/tests/local/counter.test.js'
+npx scrypt-cli@latest compile -i "src/contracts/counter.ts" && \
+NETWORK="local" npx mocha --no-config --require ts-node/register tests/counter.test.ts
 ```
 
-To understand how these tests work, please read the [sCrypt docs](https://scrypt.io/docs/how-to-test-a-contract).
+You can also manually adjust paths under `tsconfig-scryptTS.json` (contract to compile) and `.mocharc.json` (test files to run) and simply run `npm t`.
+
+To understand how the tests work, please read the [sCrypt docs](https://scrypt.io/docs/how-to-test-a-contract).
 
 ## Test on the Bitcoin Testnet
 
@@ -62,8 +65,7 @@ See the [docs](https://scrypt.io/docs/how-to-debug-a-contract/#use-visual-studio
 ## Project Structure
 
 - `src/contracts` - This is where all the smart contract code is. Each file is for a separate smart contract example, e.g. the `P2PKH` smart contract is defined inside `src/contracts/p2pkh.ts`.
-- `tests/local` - This is the directory which contains smart contract tests that get executed locally. Each smart contract has its separate test file.
-- `tests/testnet` - This is the directory which contains smart contract tests that get broadcast to the Bitcoin testnet.
+- `tests/` - This is the directory which contains smart contract tests. They can be executed locally or on testnet, depending on the `NETWORK` environment variable. Each smart contract has its separate test file.
 
 ## Legacy boilerplate
 

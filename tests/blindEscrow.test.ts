@@ -13,7 +13,7 @@ import {
     pubKey2Addr,
 } from 'scrypt-ts'
 import { Signature } from 'scrypt-ts-lib'
-import { BlindEscrow } from '../src/contracts/blindEscrow'
+import { BlindEscrow, Actions } from '../src/contracts/blindEscrow'
 import { getDefaultSigner } from './utils/helper'
 
 use(chaiAsPromised)
@@ -72,7 +72,7 @@ describe('Heavy: Test SmartContract `BlindEscrow`', () => {
 
         // Create "stamp", i.e. seller signature of the escrowNonce.
         const oracleMsg: ByteString =
-            escrowNonce + int2ByteString(BlindEscrow.RELEASE_BY_SELLER)
+            escrowNonce + int2ByteString(BigInt(Actions.RELEASE_BY_SELLER))
         const hashBuff = Buffer.from(hash256(oracleMsg), 'hex')
         const oracleSigObj = bsv.crypto.ECDSA.sign(hashBuff, seller)
         const oracleSig: Signature = {
@@ -83,25 +83,26 @@ describe('Heavy: Test SmartContract `BlindEscrow`', () => {
         await blindEscrow.connect(getDefaultSigner(buyer))
 
         await blindEscrow.deploy(1)
-        const callContract = async () =>
+        const callContract = async () =>{
             blindEscrow.methods.spend(
                 (sigResps) => findSig(sigResps, buyer.publicKey),
                 PubKey(buyerPubKey.toByteString()),
                 oracleSig,
                 PubKey(sellerPubKey.toByteString()),
-                BlindEscrow.RELEASE_BY_SELLER,
+                Actions.RELEASE_BY_SELLER,
                 {
                     pubKeyOrAddrToSign: buyer.publicKey,
                 } as MethodCallOptions<BlindEscrow>
             )
-        expect(callContract()).to.not.throw
-    })
+    }
+      return  expect(callContract()).not.be.rejected
+        })
 
     it('should pass release by arbiter', async () => {
         //// Sig by buyer, stamp by arbiter.
 
         const oracleMsg: ByteString =
-            escrowNonce + int2ByteString(BlindEscrow.RELEASE_BY_ARBITER)
+            escrowNonce + int2ByteString(BigInt(Actions.RELEASE_BY_ARBITER))
         const hashBuff = Buffer.from(hash256(oracleMsg), 'hex')
         const oracleSigObj = bsv.crypto.ECDSA.sign(hashBuff, arbiter)
         const oracleSig: Signature = {
@@ -113,26 +114,26 @@ describe('Heavy: Test SmartContract `BlindEscrow`', () => {
 
         await blindEscrow.deploy(1)
 
-        const callContract = async () =>
+        const callContract = async () =>{
             blindEscrow.methods.spend(
                 (sigResps) => findSig(sigResps, buyer.publicKey),
                 PubKey(buyerPubKey.toByteString()),
                 oracleSig,
                 PubKey(arbiterPubKey.toByteString()),
-                BlindEscrow.RELEASE_BY_ARBITER,
+                Actions.RELEASE_BY_ARBITER,
                 {
                     pubKeyOrAddrToSign: buyer.publicKey,
                 } as MethodCallOptions<BlindEscrow>
             )
-
-        expect(callContract()).to.not.throw
-    })
+    }
+       return  expect(callContract()).not.be.rejected
+        })
 
     it('should pass return by buyer', async () => {
         //// Sig by seller, stamp by buyer.
 
         const oracleMsg: ByteString =
-            escrowNonce + int2ByteString(BlindEscrow.RETURN_BY_BUYER)
+            escrowNonce + int2ByteString(BigInt(Actions.RETURN_BY_BUYER))
         const hashBuff = Buffer.from(hash256(oracleMsg), 'hex')
         const oracleSigObj = bsv.crypto.ECDSA.sign(hashBuff, buyer)
         const oracleSig: Signature = {
@@ -142,25 +143,26 @@ describe('Heavy: Test SmartContract `BlindEscrow`', () => {
 
         await blindEscrow.connect(getDefaultSigner(seller))
         await blindEscrow.deploy(1)
-        const callContract = async () =>
+        const callContract = async () =>{
             blindEscrow.methods.spend(
                 (sigResps) => findSig(sigResps, seller.publicKey),
                 PubKey(sellerPubKey.toByteString()),
                 oracleSig,
                 PubKey(buyerPubKey.toByteString()),
-                BlindEscrow.RETURN_BY_BUYER,
+                Actions.RETURN_BY_BUYER,
                 {
                     pubKeyOrAddrToSign: seller.publicKey,
                 } as MethodCallOptions<BlindEscrow>
             )
-        expect(callContract()).to.not.throw
-    })
+    }
+       return  expect(callContract()).not.be.rejected
+        })
 
     it('should pass return by arbiter', async () => {
         //// Sig by seller, stamp by arbiter.
 
         const oracleMsg: ByteString =
-            escrowNonce + int2ByteString(BlindEscrow.RETURN_BY_ARBITER)
+            escrowNonce + int2ByteString(BigInt(Actions.RETURN_BY_ARBITER))
         const hashBuff = Buffer.from(hash256(oracleMsg), 'hex')
         const oracleSigObj = bsv.crypto.ECDSA.sign(hashBuff, arbiter)
         const oracleSig: Signature = {
@@ -171,18 +173,18 @@ describe('Heavy: Test SmartContract `BlindEscrow`', () => {
         await blindEscrow.connect(getDefaultSigner(seller))
         await blindEscrow.deploy(1)
 
-        const callContract = async () =>
+        const callContract = async () =>{
             blindEscrow.methods.spend(
                 (sigResps) => findSig(sigResps, seller.publicKey),
                 PubKey(sellerPubKey.toByteString()),
                 oracleSig,
                 PubKey(arbiterPubKey.toByteString()),
-                BlindEscrow.RETURN_BY_ARBITER,
+                Actions.RETURN_BY_ARBITER,
                 {
                     pubKeyOrAddrToSign: seller.publicKey,
                 } as MethodCallOptions<BlindEscrow>
             )
-
-        return expect(callContract()).not.rejected
-    })
+    }
+       return  expect(callContract()).not.be.rejected
+        })
 })

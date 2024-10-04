@@ -1,7 +1,9 @@
 import { Auction } from '../src/contracts/auction'
-import { findSig, MethodCallOptions, PubKey, toHex } from 'scrypt-ts'
-import { expect } from 'chai'
+import { findSig, MethodCallOptions, PubKey } from 'scrypt-ts'
+import { expect, use } from 'chai'
 import { getDefaultSigner, randomPrivateKey } from './utils/helper'
+import chaiAsPromised from 'chai-as-promised'
+use(chaiAsPromised)
 
 describe('Test SmartContract `Auction` on testnet', () => {
     const [privateKeyAuctioneer, publicKeyAuctioneer] = randomPrivateKey()
@@ -25,7 +27,7 @@ describe('Test SmartContract `Auction` on testnet', () => {
     it('should pass `bid` call', async () => {
         const balance = 1
         await auction.deploy(1)
-        const callContract = async () =>
+        const callContract = async () => {
             await auction.methods.bid(
                 PubKey(publicKeyNewBidder.toByteString()),
                 BigInt(balance + 1),
@@ -33,12 +35,13 @@ describe('Test SmartContract `Auction` on testnet', () => {
                     changeAddress: addressNewBidder,
                 } as MethodCallOptions<Auction>
             )
+        }
         return expect(callContract()).not.rejected
     })
 
     it('should pass `close` call', async () => {
         await auction.deploy(1)
-        const callContract = async () =>
+        const callContract = async () => {
             await auction.methods.close(
                 (sigResps) => findSig(sigResps, publicKeyAuctioneer),
                 {
@@ -47,6 +50,7 @@ describe('Test SmartContract `Auction` on testnet', () => {
                     lockTime: auctionDeadline + 1,
                 } as MethodCallOptions<Auction>
             )
+        }
         return expect(callContract()).not.rejected
     })
 })

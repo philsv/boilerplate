@@ -3,7 +3,7 @@ import { Counter2 } from '../src/contracts/counter2'
 import { getDefaultSigner } from './utils/helper'
 import { MethodCallOptions } from 'scrypt-ts'
 
-describe('Test SmartContract `Counter`', () => {
+describe('Test SmartContract `Counter2`', () => {
     before(() => {
         Counter2.loadArtifact()
     })
@@ -29,7 +29,7 @@ describe('Test SmartContract `Counter`', () => {
 
             // call the method of current instance to apply the updates on chain
 
-            const callContract = async () =>
+            const callContract = async () => {
                 currentInstance.methods.incrementOnChain({
                     next: {
                         instance: nextInstance,
@@ -37,10 +37,10 @@ describe('Test SmartContract `Counter`', () => {
                     },
                 } as MethodCallOptions<Counter2>)
 
-            await expect(callContract()).not.rejected
-
-            // update the current instance reference
-            currentInstance = nextInstance
+                // update the current instance reference
+                currentInstance = nextInstance
+            }
+            return expect(callContract()).not.rejected
         }
     })
 
@@ -64,14 +64,15 @@ describe('Test SmartContract `Counter`', () => {
             nextInstance.reset()
 
             // call the method of current instance to apply the updates on chain
-            const callContract = async () =>
+            const callContract = async () => {
                 currentInstance.methods.resetOnChain({
                     next: {
                         instance: nextInstance,
                         balance,
                     },
                 } as MethodCallOptions<Counter2>)
-            await expect(callContract()).not.rejected
+            }
+            return expect(callContract()).not.rejected
 
             // update the current instance reference
             currentInstance = nextInstance
@@ -98,15 +99,15 @@ describe('Test SmartContract `Counter`', () => {
             nextInstance.decreament()
 
             // call the method of current instance to apply the updates on chain
-            const callContract = async () =>
+            const callContract = async () => {
                 currentInstance.methods.decreamentOnChain({
                     next: {
                         instance: nextInstance,
                         balance,
                     },
                 } as MethodCallOptions<Counter2>)
-
-            await expect(callContract()).not.rejected
+            }
+            return expect(callContract()).not.rejected
 
             // update the current instance reference
             currentInstance = nextInstance

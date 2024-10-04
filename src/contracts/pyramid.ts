@@ -1,4 +1,3 @@
-import { assert } from 'console'
 import {
     PubKey,
     Addr,
@@ -12,6 +11,7 @@ import {
     bsv,
     ByteString,
     pubKey2Addr,
+    assert,
 } from 'scrypt-ts'
 
 export class Pyramid extends SmartContract {
@@ -88,7 +88,11 @@ export class Pyramid extends SmartContract {
                     satoshis: Number(Pyramid.DUST),
                 })
             )
-            .change(options.changeAddress)
+
+        if (options.changeAddress) {
+            // build change output
+            unsignedTx.change(options.changeAddress)
+        }
 
         return Promise.resolve({
             tx: unsignedTx,

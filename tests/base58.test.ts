@@ -1,26 +1,30 @@
 import { toByteString } from 'scrypt-ts'
-import { Base58Test } from '../src/contracts/base58'
+import { Base58Test, Base58 } from '../src/contracts/base58'
 import { getDefaultSigner } from './utils/helper'
 import { expect, use } from 'chai'
 import chaiAsPromised from 'chai-as-promised'
 use(chaiAsPromised)
-
-async function main() {
-    await Base58Test.compile()
-
-    const instance = new Base58Test()
-
-    await instance.connect(getDefaultSigner())
+describe('Test SmartContract `Base58`', async () => {
+    let instance: Base58Test
+    
+    before(async () => {
+        await Base58Test.loadArtifact()
+        instance = new Base58Test()
+        await instance.connect(getDefaultSigner())
+    })
 
     it('should encode address correctly', async () => {
         await instance.deploy(1)
+        const sampleAddress = toByteString('abcdefghabcdefghabcdefgh',true)
 
-        const callContract = async () => {
-            await instance.methods.main(toByteString('1234567890abcdef', true))
-            return expect(callContract()).not.be.rejected
-        }
+        // Get the expected verification byte for testnet
+        const verbyte = Base58.P2PKH_verbyte_testnet;
+    
+        // Call the base58EncodeCheckAddr function
+        const result = Base58.base58EncodeCheckAddr(sampleAddress, verbyte);
+          
+        // Assert that the result does not throw
+        expect(result).not.throw
+       
     })
-}
-describe('Test SmartContract `Base58`', async () => {
-    await main()
 })

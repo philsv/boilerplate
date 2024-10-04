@@ -1,34 +1,25 @@
-import { assert } from 'console'
+import { BSV20V2 } from 'scrypt-ord'
 import {
     ByteString,
     PubKey,
     Addr,
     Sig,
-    SmartContract,
     Utils,
     hash256,
     method,
     prop,
     slice,
     pubKey2Addr,
+    assert,
+    len,
+    Constants,
 } from 'scrypt-ts'
 import { RabinPubKey, RabinSig, RabinVerifier } from 'scrypt-ts-lib'
 
-export class BSV20BuyOrder extends SmartContract {
-    // Inscription data of BSV-20 transfer we're
-    // looking to buy.
-    // This contains the ordered tokens ticker symbol and amount.
-    // Example:
-    // OP_FALSE OP_IF 6f7264 OP_TRUE application/bsv-20 OP_FALSE
-    // {
-    //   "p": "bsv-20",
-    //   "op": "transfer",
-    //   "tick": "ordi",
-    //   "amt": "1000"
-    // }
-    // OP_ENDIF
+export class BSV20BuyOrder extends BSV20V2 {
+    // Amount of tokens we're buying.
     @prop()
-    transferInscription: ByteString
+    readonly tokenAmt: bigint
 
     // Public key of the oracle, that is used to verify the transfers
     // genesis.
@@ -40,12 +31,18 @@ export class BSV20BuyOrder extends SmartContract {
     buyer: PubKey
 
     constructor(
-        transferInscription: ByteString,
+        id: ByteString,
+        sym: ByteString,
+        max: bigint,
+        dec: bigint,
+        tokenAmt: bigint,
         oraclePubKey: RabinPubKey,
         buyer: PubKey
     ) {
-        super(...arguments)
-        this.transferInscription = transferInscription
+        super(id, sym, max, dec)
+        this.init(...arguments)
+
+        this.tokenAmt = tokenAmt
         this.oraclePubKey = oraclePubKey
         this.buyer = buyer
     }
@@ -64,20 +61,33 @@ export class BSV20BuyOrder extends SmartContract {
 
         // Check that we're unlocking the UTXO specified in the oracles message.
         assert(
-            slice(this.prevouts, 0n, 36n) == slice(oracleMsg, 0n, 36n),
-            'first input is not spending specified ordinal UTXO'
+            slice(
+                this.prevouts,
+                Constants.OutpointLen,
+                Constants.OutpointLen * 2n
+            ) == slice(oracleMsg, 0n, Constants.OutpointLen),
+            'second input is not spending specified ordinal UTXO'
         )
+
+        // Build transfer inscription.
+        const transferInscription = BSV20V2.createTransferInsciption(
+            this.id,
+            this.tokenAmt
+        )
+        const transferInscriptionLen = len(transferInscription)
 
         // Check that the ordinal UTXO contains the right inscription.
         assert(
-            slice(oracleMsg, 36n) == this.transferInscription,
+            slice(oracleMsg, transferInscriptionLen) == transferInscription,
             'unexpected inscription from oracle'
         )
 
-        // Ensure the tokens ared being payed out to the buyer.
-        let outScript = Utils.buildPublicKeyHashScript(pubKey2Addr(this.buyer))
-        outScript += this.transferInscription
-        let outputs = Utils.buildOutput(outScript, 1n)
+        // Ensure the tokens are being payed out to the buyer.
+        let outputs = BSV20V2.buildTransferOutput(
+            pubKey2Addr(this.buyer),
+            this.id,
+            this.tokenAmt
+        )
 
         // Ensure the second output is paying the offer to the seller.
         outputs += Utils.buildPublicKeyHashOutput(

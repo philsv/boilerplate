@@ -23,9 +23,16 @@ describe('Test SmartContract `Demo`', () => {
         return expect(callContract()).not.rejected
     })
 
+    it('should pass non-public method `add`', async () => {
+        await demo.deploy(1)
+        const res = Demo.add(50n, -20n)
+        return expect(res).to.equal(30n)
+    })
+
     it('should throw when calling `unlock` with wrong solution', async () => {
         await demo.deploy(1)
         const callContract = async () => demo.methods.unlock(4n, 6n)
         return expect(callContract()).to.be.rejectedWith(/incorrect diff/)
     })
 })
+

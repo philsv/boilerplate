@@ -1,6 +1,5 @@
 import {
     assert,
-    MethodCallOptions,
     ContractTransaction,
     ByteString,
     hash256,
@@ -8,38 +7,26 @@ import {
     prop,
     PubKey,
     Sig,
-    SmartContract,
     Utils,
     bsv,
     slice,
     StatefulNext,
     pubKey2Addr,
+    Constants,
 } from 'scrypt-ts'
+import { BSV20V2, OrdiMethodCallOptions } from 'scrypt-ord'
 
 import Transaction = bsv.Transaction
-import Address = bsv.Address
 import Script = bsv.Script
 
-export class BSV20Auction extends SmartContract {
-    static readonly LOCKTIME_BLOCK_HEIGHT_MARKER = 500000000
-    static readonly UINT_MAX = 0xffffffffn
-
+export class BSV20Auction extends BSV20V2 {
     // Output of auctioned ordinal (txid + vout).
     @prop()
-    readonly ordnialPrevout: ByteString
+    readonly ordinalPrevout: ByteString
 
-    // Inscription for the BSV-20 transfer.
-    // Example:
-    // OP_FALSE OP_IF 6f7264 OP_TRUE application/bsv-20 OP_FALSE
-    // {
-    //   "p": "bsv-20",
-    //   "op": "transfer",
-    //   "tick": "ordi",
-    //   "amt": "1000"
-    // }
-    // OP_ENDIF
+    // Amount of auctioned tokens.
     @prop()
-    readonly transferInscription: ByteString
+    readonly tokenAmt: bigint
 
     // The bidder's public key.
     @prop(true)
@@ -54,14 +41,20 @@ export class BSV20Auction extends SmartContract {
     readonly auctionDeadline: bigint
 
     constructor(
+        id: ByteString,
+        sym: ByteString,
+        max: bigint,
+        dec: bigint,
+        tokenAmt: bigint,
         ordinalPrevout: ByteString,
-        transferInscription: ByteString,
         auctioneer: PubKey,
         auctionDeadline: bigint
     ) {
-        super(...arguments)
-        this.ordnialPrevout = ordinalPrevout
-        this.transferInscription = transferInscription
+        super(id, sym, max, dec)
+        this.init(...arguments)
+
+        this.tokenAmt = tokenAmt
+        this.ordinalPrevout = ordinalPrevout
         this.bidder = auctioneer
         this.auctioneer = auctioneer
         this.auctionDeadline = auctionDeadline
@@ -102,21 +95,8 @@ export class BSV20Auction extends SmartContract {
     // Close the auction if deadline is reached.
     @method()
     public close(sigAuctioneer: Sig) {
-        // Check if using block height.
-        if (this.auctionDeadline < BSV20Auction.LOCKTIME_BLOCK_HEIGHT_MARKER) {
-            // Enforce nLocktime field to also use block height.
-            assert(
-                this.ctx.locktime < BSV20Auction.LOCKTIME_BLOCK_HEIGHT_MARKER
-            )
-        }
-        assert(
-            this.ctx.sequence < BSV20Auction.UINT_MAX,
-            'input sequence should less than UINT_MAX'
-        )
-        assert(
-            this.ctx.locktime >= this.auctionDeadline,
-            'auction is not over yet'
-        )
+        // Check auction deadline.
+        assert(this.timeLock(this.auctionDeadline), 'deadline not reached')
 
         // Check signature of the auctioneer.
         assert(
@@ -126,15 +106,17 @@ export class BSV20Auction extends SmartContract {
 
         // Ensure the first input is spending the auctioned ordinal UTXO.
         assert(
-            slice(this.prevouts, 0n, 36n) == this.ordnialPrevout,
+            slice(this.prevouts, 0n, Constants.OutpointLen) ==
+                this.ordinalPrevout,
             'first input is not spending specified ordinal UTXO'
         )
 
         // Ensure the ordinal is being payed out to the winning bidder.
-        const outScript =
-            this.transferInscription +
-            Utils.buildPublicKeyHashScript(pubKey2Addr(this.bidder))
-        let outputs = Utils.buildOutput(outScript, 1n)
+        let outputs = BSV20V2.buildTransferOutput(
+            pubKey2Addr(this.bidder),
+            this.id,
+            this.tokenAmt
+        )
 
         // Ensure the second output is paying the bid to the auctioneer.
         outputs += Utils.buildPublicKeyHashOutput(
@@ -152,7 +134,7 @@ export class BSV20Auction extends SmartContract {
     // User defined transaction builder for calling function `bid`
     static buildTxForBid(
         current: BSV20Auction,
-        options: MethodCallOptions<BSV20Auction>,
+        options: OrdiMethodCallOptions<BSV20Auction>,
         bidder: PubKey,
         bid: bigint
     ): Promise<ContractTransaction> {
@@ -179,8 +161,11 @@ export class BSV20Auction extends SmartContract {
                     satoshis: current.balance,
                 })
             )
+
+        if (options.changeAddress) {
             // build change output
-            .change(options.changeAddress)
+            unsignedTx.change(options.changeAddress)
+        }
 
         return Promise.resolve({
             tx: unsignedTx,

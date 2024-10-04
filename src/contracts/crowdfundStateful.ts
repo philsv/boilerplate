@@ -13,7 +13,6 @@ import {
     bsv,
     MethodCallOptions,
     ContractTransaction,
-    StatefulNext,
 } from 'scrypt-ts'
 
 /*
@@ -24,11 +23,6 @@ import {
 export type DonorMap = HashedMap<PubKey, bigint>
 
 export class CrowdfundStateful extends SmartContract {
-    @prop()
-    static readonly LOCKTIME_BLOCK_HEIGHT_MARKER: bigint = 500000000n
-    @prop()
-    static readonly UINT_MAX: bigint = 0xffffffffn
-
     @prop()
     beneficiary: PubKey
 
@@ -69,7 +63,7 @@ export class CrowdfundStateful extends SmartContract {
         this.donor.set(contributor, amount)
 
         //updating the contract state
-        let output: ByteString =
+        const output: ByteString =
             this.buildStateOutput(this.ctx.utxo.value + amount) +
             this.buildChangeOutput()
 
@@ -82,26 +76,14 @@ export class CrowdfundStateful extends SmartContract {
         // Ensure the collected amount actually reaches the target.
         assert(this.ctx.utxo.value >= this.target)
 
+        // Check deadline.
         assert(
-            this.ctx.sequence < CrowdfundStateful.UINT_MAX,
-            'require nLocktime enabled'
-        )
-
-        // Check if using block height.
-        if (this.deadline < CrowdfundStateful.LOCKTIME_BLOCK_HEIGHT_MARKER) {
-            // Enforce nLocktime field to also use block height.
-            assert(
-                this.ctx.locktime <
-                    CrowdfundStateful.LOCKTIME_BLOCK_HEIGHT_MARKER
-            )
-        }
-        assert(
-            this.ctx.locktime >= this.deadline,
+            this.timeLock(this.deadline),
             'the beneficiary cannot collect before fundraising expired'
         )
 
         // Funds go to the beneficiary.
-        let outputs =
+        const outputs =
             Utils.buildPublicKeyHashOutput(
                 hash160(this.beneficiary),
                 this.ctx.utxo.value

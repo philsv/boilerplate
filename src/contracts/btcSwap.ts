@@ -23,10 +23,7 @@ export type VarIntRes = {
 }
 
 export class BTCSwap extends SmartContract {
-    static readonly LOCKTIME_BLOCK_HEIGHT_MARKER = 500000000
-    static readonly UINT_MAX = 0xffffffffn
     static readonly MIN_CONF = 3
-
     static readonly BTC_MAX_INPUTS = 3
 
     @prop()
@@ -168,7 +165,7 @@ export class BTCSwap extends SmartContract {
 
         // Calc merkle root.
         const txID = hash256(btcTx)
-        const merkleRoot = MerklePath.calcMerkleRoot(txID, merkleProof)
+        const merkleRoot = MerklePath.calcMerkleRoot(txID, merkleProof, 32)
 
         // Check if merkle root is included in the first BH.
         assert(
@@ -212,24 +209,8 @@ export class BTCSwap extends SmartContract {
 
     @method()
     public cancel(bobPubKey: PubKey, bobSig: Sig) {
-        // Ensure nSequence is less than UINT_MAX.
-        assert(
-            this.ctx.sequence < BTCSwap.UINT_MAX,
-            'input sequence should less than UINT_MAX'
-        )
-
-        // Check if using block height.
-        if (this.timeout < BTCSwap.LOCKTIME_BLOCK_HEIGHT_MARKER) {
-            // Enforce nLocktime field to also use block height.
-            assert(
-                this.ctx.locktime < BTCSwap.LOCKTIME_BLOCK_HEIGHT_MARKER,
-                'locktime should be less than 500000000'
-            )
-        }
-        assert(
-            this.ctx.locktime >= this.timeout,
-            'locktime has not yet expired'
-        )
+        // Check timeout.
+        assert(this.timeLock(this.timeout), 'time lock not yet expired')
 
         // Verify Bobs signature.
         assert(pubKey2Addr(bobPubKey) == this.bobAddr, 'Bob wrong pub key.')

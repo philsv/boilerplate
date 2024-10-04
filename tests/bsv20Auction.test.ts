@@ -11,78 +11,11 @@ import {
     reverseByteString,
     toByteString,
     Utils,
-    UTXO,
 } from 'scrypt-ts'
 import { myPrivateKey, myPublicKey } from './utils/privateKey'
 import { BSV20Auction } from '../src/contracts/bsv20Auction'
 import { signTx } from 'scryptlib'
-
-function jsonToUtf8Hex(jsonObject: any): string {
-    // Convert JSON object to a string
-    const jsonString = JSON.stringify(jsonObject)
-
-    // Encode the string using UTF-8 encoding
-    const utf8Bytes = new TextEncoder().encode(jsonString)
-
-    // Convert encoded bytes to hexadecimal string
-    let utf8Hex = ''
-    for (const byte of utf8Bytes) {
-        utf8Hex += byte.toString(16).padStart(2, '0')
-    }
-
-    return utf8Hex
-}
-
-function getMockBSV20TransferInscription(
-    tick: string,
-    amt: number
-): bsv.Script {
-    const msg = {
-        p: 'bsv-20',
-        op: 'transfer',
-        tick: tick,
-        amt: amt.toString(),
-    }
-    const msgBuff = Buffer.from(JSON.stringify(msg), 'utf8')
-    const msgHex = msgBuff.toString('hex')
-    return bsv.Script.fromASM(
-        `OP_FALSE OP_IF 6f7264 OP_TRUE 6170706c69636174696f6e2f6273762d3230 OP_FALSE ${msgHex} OP_ENDIF`
-    )
-}
-
-async function deployInscription(
-    dest: Addr,
-    inscription: bsv.Script
-): Promise<UTXO> {
-    const signer = getDefaultSigner()
-    await signer.provider?.connect()
-
-    const address = await signer.getDefaultAddress()
-
-    // TODO: pick only as many utxos as needed
-    const utxos = await signer.listUnspent(address)
-
-    const unsignedTx = new bsv.Transaction()
-        .from(utxos)
-        .addOutput(
-            new bsv.Transaction.Output({
-                script: bsv.Script.fromHex(
-                    Utils.buildPublicKeyHashScript(dest)
-                ).add(inscription),
-                satoshis: 1,
-            })
-        )
-        .change(address)
-
-    const resp = await signer.signAndsendTransaction(unsignedTx, { address })
-
-    return {
-        txId: resp.id,
-        outputIndex: 0,
-        script: resp.outputs[0].script.toHex(),
-        satoshis: resp.outputs[0].satoshis,
-    }
-}
+import { BSV20V2, BSV20V2P2PKH } from 'scrypt-ord'
 
 async function main() {
     BSV20Auction.loadArtifact()
@@ -104,12 +37,24 @@ async function main() {
 
     const auctionDeadline = Math.round(new Date('2020-01-03').valueOf() / 1000)
 
-    const transferInscription = getMockBSV20TransferInscription('ordi', 1000)
-    const ordinalUTXO = await deployInscription(
-        Addr(publicKeyAuctioneer.toAddress().toByteString()),
-        transferInscription
+    // Mint some tokens.
+    const max = 10000n // Whole token amount.
+    const dec = 0n // Decimal precision.
+    const sym = toByteString('TEST', true)
+
+    const bsv20p2pkh = new BSV20V2P2PKH(
+        toByteString(''),
+        sym,
+        max,
+        dec,
+        Addr(publicKeyAuctioneer.toAddress().toByteString())
     )
-    console.log('Mock BSV-20 ordinal deployed:', ordinalUTXO.txId)
+    await bsv20p2pkh.connect(getDefaultSigner())
+    const tokenId = await bsv20p2pkh.deployToken()
+
+    const ordinalUTXO = bsv20p2pkh.utxo
+
+    console.log('Mock BSV-20 tokens deployed:', ordinalUTXO.txId)
 
     await sleep(3)
 
@@ -118,8 +63,12 @@ async function main() {
         int2ByteString(BigInt(ordinalUTXO.outputIndex), 4n)
 
     const auction = new BSV20Auction(
+        toByteString(tokenId, true),
+        sym,
+        max,
+        dec,
+        10000n,
         ordinalPrevout,
-        toByteString(transferInscription.toHex()),
         PubKey(publicKeyAuctioneer.toByteString()),
         BigInt(auctionDeadline)
     )
@@ -142,7 +91,7 @@ async function main() {
         const nextInstance = currentInstance.next()
         nextInstance.bidder = newHighestBidder
 
-        const contractTx = await currentInstance.methods.bid(
+        const callRes = await currentInstance.methods.bid(
             newHighestBidder,
             bid,
             {
@@ -154,7 +103,7 @@ async function main() {
             } as MethodCallOptions<BSV20Auction>
         )
 
-        console.log('Bid Tx:', contractTx.tx.id)
+        console.log('Bid Tx:', callRes.tx.id)
 
         balance += Number(bid)
         currentInstance = nextInstance
@@ -182,12 +131,16 @@ async function main() {
                 )
                 .addInput(current.buildContractInput())
 
-            // Build ordinal destination output
-            // and inscribe with transfer data.
+            // Build ordinal destination output.
             unsignedTx
                 .addOutput(
                     new bsv.Transaction.Output({
-                        script: transferInscription.add(
+                        script: bsv.Script.fromHex(
+                            BSV20V2.createTransferInsciption(
+                                toByteString(tokenId, true),
+                                10000n
+                            )
+                        ).add(
                             bsv.Script.fromHex(
                                 Utils.buildPublicKeyHashScript(
                                     pubKey2Addr(current.bidder)
@@ -229,7 +182,7 @@ async function main() {
         }
     )
 
-    let contractTx = await currentInstance.methods.close(
+    let callRes = await currentInstance.methods.close(
         (sigResps) => findSig(sigResps, publicKeyAuctioneer),
         {
             pubKeyOrAddrToSign: publicKeyAuctioneer,
@@ -243,7 +196,7 @@ async function main() {
 
     // If we would like to broadcast, here we need to sign ordinal UTXO input.
     const ordinalSig = signTx(
-        contractTx.tx,
+        callRes.tx,
         privateKeyAuctioneer,
         bsv.Script.fromHex(ordinalUTXO.script),
         ordinalUTXO.satoshis,
@@ -251,7 +204,7 @@ async function main() {
         bsv.crypto.Signature.ANYONECANPAY_SINGLE
     )
 
-    contractTx.tx.inputs[0].setScript(
+    callRes.tx.inputs[0].setScript(
         bsv.Script.fromASM(
             `${ordinalSig} ${publicKeyAuctioneer.toByteString()}`
         )
@@ -265,14 +218,14 @@ async function main() {
             options: MethodCallOptions<BSV20Auction>
         ) => {
             return Promise.resolve({
-                tx: contractTx.tx,
+                tx: callRes.tx,
                 atInputIndex: 1,
                 nexts: [],
             })
         }
     )
 
-    contractTx = await currentInstance.methods.close(
+    callRes = await currentInstance.methods.close(
         (sigResps) => findSig(sigResps, publicKeyAuctioneer),
         {
             pubKeyOrAddrToSign: publicKeyAuctioneer,
@@ -282,7 +235,7 @@ async function main() {
         } as MethodCallOptions<BSV20Auction>
     )
 
-    console.log('Close Tx: ', contractTx.tx.id)
+    console.log('Close Tx: ', callRes.tx.id)
 }
 
 describe('Test SmartContract `BSV20Auction`', () => {
